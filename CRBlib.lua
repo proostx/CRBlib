@@ -735,7 +735,7 @@ function Tab:CreateSection(options)
 	})
 
 	Padding(holder, 4, 4, 4, 4)
-	local holderLayout = List(holder, 4)
+	List(holder, 4)
 
 	local header = Create("TextButton", {
 		BackgroundTransparency = 1,
@@ -772,17 +772,18 @@ function Tab:CreateSection(options)
 
 	local content = Create("Frame", {
 		BackgroundTransparency = 1,
+		AutomaticSize = Enum.AutomaticSize.Y,
 		Size = UDim2.new(1, 0, 0, 0),
 		Parent = holder
 	})
 	local contentLayout = List(content, 4)
 
 	function section:Refresh()
-		content.Size = UDim2.new(1, 0, 0, contentLayout.AbsoluteContentSize.Y)
+		local contentHeight = contentLayout.AbsoluteContentSize.Y
 		local base = 4 + 20 + 4 + 2 + 4
-		holder.Size = UDim2.new(1, 0, 0, section.Collapsed and base or (base + contentLayout.AbsoluteContentSize.Y))
 		content.Visible = not section.Collapsed
 		arrow.Text = section.Collapsed and ">" or "⌄"
+		holder.Size = UDim2.new(1, 0, 0, section.Collapsed and base or (base + contentHeight))
 	end
 
 	contentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
@@ -812,9 +813,11 @@ end
 
 function Section:AddLabel(options)
 	options = options or {}
+	local window = self.Window
+
 	local frame = Create("Frame", {
-		BackgroundColor3 = self.Window.Theme.Element2,
-		BorderColor3 = self.Window.Theme.BorderSoft,
+		BackgroundColor3 = window.Theme.Element2,
+		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
 		Size = UDim2.new(1, 0, 0, 22),
 		Parent = self.Content
@@ -827,7 +830,7 @@ function Section:AddLabel(options)
 		Text = options.Text or "Label",
 		Parent = frame
 	})
-	ApplyText(text, 18, self.Window.Theme.Text, false)
+	ApplyText(text, 18, window.Theme.Text, false)
 
 	local api = {}
 	function api:Set(v)
@@ -839,10 +842,11 @@ end
 
 function Section:AddParagraph(options)
 	options = options or {}
+	local window = self.Window
 
 	local frame = Create("Frame", {
-		BackgroundColor3 = self.Window.Theme.Element2,
-		BorderColor3 = self.Window.Theme.BorderSoft,
+		BackgroundColor3 = window.Theme.Element2,
+		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
 		Size = UDim2.new(1, 0, 0, 40),
 		Parent = self.Content
@@ -855,7 +859,7 @@ function Section:AddParagraph(options)
 		Text = options.Title or "Paragraph",
 		Parent = frame
 	})
-	ApplyText(title, 18, self.Window.Theme.Text, true)
+	ApplyText(title, 18, window.Theme.Text, true)
 
 	local body = Create("TextLabel", {
 		BackgroundTransparency = 1,
@@ -866,16 +870,17 @@ function Section:AddParagraph(options)
 		Text = options.Content or "",
 		Parent = frame
 	})
-	ApplyText(body, 16, self.Window.Theme.SubText, false)
+	ApplyText(body, 16, window.Theme.SubText, false)
 
 	local function resize()
-		local bound = TextService:GetTextSize(body.Text, 16, body.Font, Vector2.new(300, 9999))
+		local width = math.max(frame.AbsoluteSize.X - 8, 50)
+		local bound = TextService:GetTextSize(body.Text, 16, body.Font, Vector2.new(width, 9999))
 		frame.Size = UDim2.new(1, 0, 0, 24 + bound.Y + 4)
 		body.Size = UDim2.new(1, -8, 0, bound.Y)
 		self:Refresh()
 	end
 
-	resize()
+	task.defer(resize)
 
 	local api = {}
 	function api:SetTitle(v)
@@ -892,10 +897,11 @@ end
 
 function Section:AddButton(options)
 	options = options or {}
+	local window = self.Window
 
 	local button = Create("TextButton", {
-		BackgroundColor3 = self.Window.Theme.Element2,
-		BorderColor3 = self.Window.Theme.BorderSoft,
+		BackgroundColor3 = window.Theme.Element2,
+		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
 		Size = UDim2.new(1, 0, 0, 22),
 		Text = "",
@@ -910,13 +916,13 @@ function Section:AddButton(options)
 		Text = options.Text or "Button",
 		Parent = button
 	})
-	ApplyText(text, 18, self.Window.Theme.Text, false)
+	ApplyText(text, 18, window.Theme.Text, false)
 
 	button.MouseButton1Click:Connect(function()
-		Tween(button, TweenInfo.new(0.08), {BackgroundColor3 = self.Window.Theme.Element})
+		Tween(button, TweenInfo.new(0.08), {BackgroundColor3 = window.Theme.Element})
 		task.delay(0.08, function()
 			if button.Parent then
-				Tween(button, TweenInfo.new(0.08), {BackgroundColor3 = self.Window.Theme.Element2})
+				Tween(button, TweenInfo.new(0.08), {BackgroundColor3 = window.Theme.Element2})
 			end
 		end)
 		if options.Callback then
@@ -939,11 +945,12 @@ end
 
 function Section:AddToggle(options)
 	options = options or {}
+	local window = self.Window
 	local flag = options.Flag
 	local state = options.Default or false
 
 	if flag then
-		self.Window.Flags[flag] = state
+		window.Flags[flag] = state
 	end
 
 	local row = Create("TextButton", {
@@ -955,8 +962,8 @@ function Section:AddToggle(options)
 	})
 
 	local box = Create("Frame", {
-		BackgroundColor3 = self.Window.Theme.Element2,
-		BorderColor3 = self.Window.Theme.Border,
+		BackgroundColor3 = window.Theme.Element2,
+		BorderColor3 = window.Theme.Border,
 		BorderSizePixel = 1,
 		Position = UDim2.new(0, 0, 0.5, -6),
 		Size = UDim2.new(0, 12, 0, 12),
@@ -964,7 +971,7 @@ function Section:AddToggle(options)
 	})
 
 	local fill = Create("Frame", {
-		BackgroundColor3 = self.Window.Theme.Accent,
+		BackgroundColor3 = window.Theme.Accent,
 		BorderSizePixel = 0,
 		Position = UDim2.new(0, 2, 0, 2),
 		Size = UDim2.new(1, -4, 1, -4),
@@ -979,14 +986,14 @@ function Section:AddToggle(options)
 		Text = options.Text or "Toggle",
 		Parent = row
 	})
-	ApplyText(text, 18, self.Window.Theme.Text, false)
+	ApplyText(text, 18, window.Theme.Text, false)
 
 	local api = {Flag = flag}
 	function api:Set(v, silent)
 		state = not not v
 		fill.Visible = state
 		if flag then
-			self.Window.Flags[flag] = state
+			window.Flags[flag] = state
 		end
 		if not silent and options.Callback then
 			options.Callback(state)
@@ -1005,11 +1012,12 @@ end
 
 function Section:AddTextbox(options)
 	options = options or {}
+	local window = self.Window
 	local flag = options.Flag
 	local value = options.Default or ""
 
 	if flag then
-		self.Window.Flags[flag] = value
+		window.Flags[flag] = value
 	end
 
 	local row = Create("Frame", {
@@ -1024,11 +1032,11 @@ function Section:AddTextbox(options)
 		Text = options.Text or "Textbox",
 		Parent = row
 	})
-	ApplyText(label, 18, self.Window.Theme.Text, false)
+	ApplyText(label, 18, window.Theme.Text, false)
 
 	local box = Create("TextBox", {
-		BackgroundColor3 = self.Window.Theme.Element2,
-		BorderColor3 = self.Window.Theme.BorderSoft,
+		BackgroundColor3 = window.Theme.Element2,
+		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
 		Position = UDim2.new(1, -82, 0, 2),
 		Size = UDim2.new(0, 82, 1, -4),
@@ -1037,14 +1045,14 @@ function Section:AddTextbox(options)
 		ClearTextOnFocus = false,
 		Parent = row
 	})
-	ApplyText(box, 16, self.Window.Theme.SubText, false)
+	ApplyText(box, 16, window.Theme.SubText, false)
 
 	local api = {Flag = flag}
 	function api:Set(v, silent)
 		value = tostring(v)
 		box.Text = value
 		if flag then
-			self.Window.Flags[flag] = value
+			window.Flags[flag] = value
 		end
 		if not silent and options.Callback then
 			options.Callback(value, false)
@@ -1057,7 +1065,7 @@ function Section:AddTextbox(options)
 	box.FocusLost:Connect(function(enterPressed)
 		value = box.Text
 		if flag then
-			self.Window.Flags[flag] = value
+			window.Flags[flag] = value
 		end
 		if options.Callback then
 			options.Callback(value, enterPressed)
@@ -1069,6 +1077,7 @@ end
 
 function Section:AddSlider(options)
 	options = options or {}
+	local window = self.Window
 	local min = options.Min or 0
 	local max = options.Max or 100
 	local decimals = options.Decimals or 0
@@ -1077,7 +1086,7 @@ function Section:AddSlider(options)
 	local dragging = false
 
 	if flag then
-		self.Window.Flags[flag] = value
+		window.Flags[flag] = value
 	end
 
 	local row = Create("Frame", {
@@ -1092,7 +1101,7 @@ function Section:AddSlider(options)
 		Text = options.Text or "Slider",
 		Parent = row
 	})
-	ApplyText(label, 18, self.Window.Theme.Text, false)
+	ApplyText(label, 18, window.Theme.Text, false)
 
 	local number = Create("TextLabel", {
 		BackgroundTransparency = 1,
@@ -1101,12 +1110,12 @@ function Section:AddSlider(options)
 		Text = tostring(value),
 		Parent = row
 	})
-	ApplyText(number, 18, self.Window.Theme.SubText, false)
+	ApplyText(number, 18, window.Theme.SubText, false)
 	number.TextXAlignment = Enum.TextXAlignment.Right
 
 	local bar = Create("Frame", {
-		BackgroundColor3 = self.Window.Theme.Element2,
-		BorderColor3 = self.Window.Theme.Border,
+		BackgroundColor3 = window.Theme.Element2,
+		BorderColor3 = window.Theme.Border,
 		BorderSizePixel = 1,
 		Position = UDim2.new(0, 0, 0, 20),
 		Size = UDim2.new(1, 0, 0, 12),
@@ -1114,13 +1123,14 @@ function Section:AddSlider(options)
 	})
 
 	local fill = Create("Frame", {
-		BackgroundColor3 = self.Window.Theme.Accent,
+		BackgroundColor3 = window.Theme.Accent,
 		BorderSizePixel = 0,
 		Size = UDim2.new(0, 0, 1, 0),
 		Parent = bar
 	})
 
 	local api = {Flag = flag}
+
 	function api:Set(v, silent)
 		v = Clamp(v, min, max)
 		if decimals <= 0 then
@@ -1129,17 +1139,21 @@ function Section:AddSlider(options)
 			local p = 10 ^ decimals
 			v = math.floor(v * p + 0.5) / p
 		end
+
 		value = v
 		local pct = (value - min) / (max - min)
 		fill.Size = UDim2.new(pct, 0, 1, 0)
 		number.Text = tostring(value)
+
 		if flag then
-			self.Window.Flags[flag] = value
+			window.Flags[flag] = value
 		end
+
 		if not silent and options.Callback then
 			options.Callback(value)
 		end
 	end
+
 	function api:Get()
 		return value
 	end
@@ -1175,7 +1189,7 @@ end
 
 function Section:AddDropdown(options)
 	options = options or {}
-
+	local window = self.Window
 	local flag = options.Flag
 	local searchable = if options.Searchable == nil then true else options.Searchable
 	local multi = options.Multi or false
@@ -1184,7 +1198,7 @@ function Section:AddDropdown(options)
 	local opened = false
 
 	if flag then
-		self.Window.Flags[flag] = selected
+		window.Flags[flag] = selected
 	end
 
 	local holder = Create("Frame", {
@@ -1194,8 +1208,8 @@ function Section:AddDropdown(options)
 	})
 
 	local button = Create("TextButton", {
-		BackgroundColor3 = self.Window.Theme.Element2,
-		BorderColor3 = self.Window.Theme.BorderSoft,
+		BackgroundColor3 = window.Theme.Element2,
+		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
 		Size = UDim2.new(1, 0, 0, 22),
 		Text = "",
@@ -1210,7 +1224,7 @@ function Section:AddDropdown(options)
 		Text = options.Text or "Dropdown",
 		Parent = button
 	})
-	ApplyText(label, 18, self.Window.Theme.Text, false)
+	ApplyText(label, 18, window.Theme.Text, false)
 
 	local arrow = Create("TextLabel", {
 		BackgroundTransparency = 1,
@@ -1219,13 +1233,13 @@ function Section:AddDropdown(options)
 		Text = "^",
 		Parent = button
 	})
-	ApplyText(arrow, 16, self.Window.Theme.SubText, false)
+	ApplyText(arrow, 16, window.Theme.SubText, false)
 	arrow.TextXAlignment = Enum.TextXAlignment.Center
 
 	local search = Create("TextBox", {
 		Visible = searchable,
-		BackgroundColor3 = self.Window.Theme.Element2,
-		BorderColor3 = self.Window.Theme.BorderSoft,
+		BackgroundColor3 = window.Theme.Element2,
+		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
 		Position = UDim2.new(0, 0, 0, 26),
 		Size = UDim2.new(1, 0, 0, 20),
@@ -1234,11 +1248,11 @@ function Section:AddDropdown(options)
 		ClearTextOnFocus = false,
 		Parent = holder
 	})
-	ApplyText(search, 16, self.Window.Theme.SubText, false)
+	ApplyText(search, 16, window.Theme.SubText, false)
 
 	local dropFrame = Create("Frame", {
-		BackgroundColor3 = self.Window.Theme.Section,
-		BorderColor3 = self.Window.Theme.Border,
+		BackgroundColor3 = window.Theme.Section,
+		BorderColor3 = window.Theme.Border,
 		BorderSizePixel = 1,
 		Position = UDim2.new(0, 0, 0, searchable and 50 or 24),
 		Size = UDim2.new(1, 0, 0, 0),
@@ -1253,7 +1267,7 @@ function Section:AddDropdown(options)
 		Size = UDim2.new(1, 0, 1, 0),
 		CanvasSize = UDim2.new(),
 		ScrollBarThickness = 2,
-		ScrollBarImageColor3 = self.Window.Theme.Border,
+		ScrollBarImageColor3 = window.Theme.Border,
 		Parent = dropFrame
 	})
 	Padding(scroll, 2, 2, 2, 2)
@@ -1288,7 +1302,7 @@ function Section:AddDropdown(options)
 
 	local function fire(silent)
 		if flag then
-			self.Window.Flags[flag] = selected
+			window.Flags[flag] = selected
 		end
 		updateLabel()
 		if not silent and options.Callback then
@@ -1318,15 +1332,15 @@ function Section:AddDropdown(options)
 			if allowed then
 				count += 1
 				local itemButton = Create("TextButton", {
-					BackgroundColor3 = self.Window.Theme.Element2,
-					BorderColor3 = self.Window.Theme.BorderSoft,
+					BackgroundColor3 = window.Theme.Element2,
+					BorderColor3 = window.Theme.BorderSoft,
 					BorderSizePixel = 1,
 					Size = UDim2.new(1, 0, 0, 20),
 					Text = textValue,
 					AutoButtonColor = false,
 					Parent = scroll
 				})
-				ApplyText(itemButton, 17, self.Window.Theme.Text, false)
+				ApplyText(itemButton, 17, window.Theme.Text, false)
 
 				itemButton.MouseButton1Click:Connect(function()
 					if multi then
@@ -1408,7 +1422,7 @@ end
 
 function Section:AddColorPicker(options)
 	options = options or {}
-
+	local window = self.Window
 	local flag = options.Flag
 	local color = options.Default or Color3.fromRGB(255, 0, 0)
 	local h, s, v = color:ToHSV()
@@ -1417,7 +1431,7 @@ function Section:AddColorPicker(options)
 	local hueDrag = false
 
 	if flag then
-		self.Window.Flags[flag] = color
+		window.Flags[flag] = color
 	end
 
 	local holder = Create("Frame", {
@@ -1427,8 +1441,8 @@ function Section:AddColorPicker(options)
 	})
 
 	local button = Create("TextButton", {
-		BackgroundColor3 = self.Window.Theme.Element2,
-		BorderColor3 = self.Window.Theme.BorderSoft,
+		BackgroundColor3 = window.Theme.Element2,
+		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
 		Size = UDim2.new(1, 0, 0, 22),
 		Text = "",
@@ -1443,11 +1457,11 @@ function Section:AddColorPicker(options)
 		Text = options.Text or "ColorWheel",
 		Parent = button
 	})
-	ApplyText(label, 18, self.Window.Theme.Text, false)
+	ApplyText(label, 18, window.Theme.Text, false)
 
 	local preview = Create("Frame", {
 		BackgroundColor3 = color,
-		BorderColor3 = self.Window.Theme.Border,
+		BorderColor3 = window.Theme.Border,
 		BorderSizePixel = 1,
 		Position = UDim2.new(1, -28, 0.5, -6),
 		Size = UDim2.new(0, 12, 0, 12),
@@ -1462,12 +1476,12 @@ function Section:AddColorPicker(options)
 		Text = "^",
 		Parent = button
 	})
-	ApplyText(arrow, 16, self.Window.Theme.SubText, false)
+	ApplyText(arrow, 16, window.Theme.SubText, false)
 	arrow.TextXAlignment = Enum.TextXAlignment.Center
 
 	local picker = Create("Frame", {
-		BackgroundColor3 = self.Window.Theme.Section,
-		BorderColor3 = self.Window.Theme.Border,
+		BackgroundColor3 = window.Theme.Section,
+		BorderColor3 = window.Theme.Border,
 		BorderSizePixel = 1,
 		Position = UDim2.new(0, 0, 0, 26),
 		Size = UDim2.new(1, 0, 0, 0),
@@ -1478,7 +1492,7 @@ function Section:AddColorPicker(options)
 
 	local sv = Create("ImageButton", {
 		BackgroundColor3 = Color3.fromHSV(h, 1, 1),
-		BorderColor3 = self.Window.Theme.BorderSoft,
+		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
 		Position = UDim2.new(0, 4, 0, 4),
 		Size = UDim2.new(1, -16, 0, 86),
@@ -1500,7 +1514,7 @@ function Section:AddColorPicker(options)
 
 	local hue = Create("ImageButton", {
 		BackgroundColor3 = Color3.new(1, 1, 1),
-		BorderColor3 = self.Window.Theme.BorderSoft,
+		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
 		Position = UDim2.new(1, -10, 0, 4),
 		Size = UDim2.new(0, 6, 0, 86),
@@ -1511,7 +1525,7 @@ function Section:AddColorPicker(options)
 	})
 
 	local hueCursor = Create("Frame", {
-		BackgroundColor3 = self.Window.Theme.Text,
+		BackgroundColor3 = window.Theme.Text,
 		BorderSizePixel = 0,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Size = UDim2.new(1, 4, 0, 2),
@@ -1519,8 +1533,8 @@ function Section:AddColorPicker(options)
 	})
 
 	local rgb = Create("TextBox", {
-		BackgroundColor3 = self.Window.Theme.Element2,
-		BorderColor3 = self.Window.Theme.BorderSoft,
+		BackgroundColor3 = window.Theme.Element2,
+		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
 		Position = UDim2.new(0, 4, 0, 94),
 		Size = UDim2.new(1, -8, 0, 20),
@@ -1529,7 +1543,7 @@ function Section:AddColorPicker(options)
 		ClearTextOnFocus = false,
 		Parent = picker
 	})
-	ApplyText(rgb, 16, self.Window.Theme.SubText, false)
+	ApplyText(rgb, 16, window.Theme.SubText, false)
 
 	local function apply(silent)
 		color = Color3.fromHSV(h, s, v)
@@ -1539,7 +1553,7 @@ function Section:AddColorPicker(options)
 		hueCursor.Position = UDim2.new(0.5, 0, h, 0)
 		rgb.Text = string.format("%d, %d, %d", math.floor(color.R * 255 + 0.5), math.floor(color.G * 255 + 0.5), math.floor(color.B * 255 + 0.5))
 		if flag then
-			self.Window.Flags[flag] = color
+			window.Flags[flag] = color
 		end
 		if not silent and options.Callback then
 			options.Callback(color)
@@ -1630,10 +1644,10 @@ end
 
 function Section:AddKeybind(options)
 	options = options or {}
+	local window = self.Window
 	local flag = options.Flag
 	local key = options.Default or Enum.KeyCode.F
 	local mode = options.Mode or "Toggle"
-	local state = false
 	local waiting = false
 
 	local validModes = {
@@ -1646,7 +1660,7 @@ function Section:AddKeybind(options)
 	end
 
 	if flag then
-		self.Window.Flags[flag] = key
+		window.Flags[flag] = key
 	end
 
 	local row = Create("Frame", {
@@ -1661,11 +1675,11 @@ function Section:AddKeybind(options)
 		Text = options.Text or "Keybind",
 		Parent = row
 	})
-	ApplyText(label, 18, self.Window.Theme.Text, false)
+	ApplyText(label, 18, window.Theme.Text, false)
 
 	local modeButton = Create("TextButton", {
-		BackgroundColor3 = self.Window.Theme.Element2,
-		BorderColor3 = self.Window.Theme.BorderSoft,
+		BackgroundColor3 = window.Theme.Element2,
+		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
 		Position = UDim2.new(1, -74, 0, 2),
 		Size = UDim2.new(0, 48, 1, -4),
@@ -1673,12 +1687,12 @@ function Section:AddKeybind(options)
 		AutoButtonColor = false,
 		Parent = row
 	})
-	ApplyText(modeButton, 14, self.Window.Theme.SubText, false)
+	ApplyText(modeButton, 14, window.Theme.SubText, false)
 	modeButton.TextXAlignment = Enum.TextXAlignment.Center
 
 	local keyButton = Create("TextButton", {
-		BackgroundColor3 = self.Window.Theme.Element2,
-		BorderColor3 = self.Window.Theme.BorderSoft,
+		BackgroundColor3 = window.Theme.Element2,
+		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
 		Position = UDim2.new(1, -20, 0, 2),
 		Size = UDim2.new(0, 20, 1, -4),
@@ -1686,7 +1700,7 @@ function Section:AddKeybind(options)
 		AutoButtonColor = false,
 		Parent = row
 	})
-	ApplyText(keyButton, 14, self.Window.Theme.SubText, false)
+	ApplyText(keyButton, 14, window.Theme.SubText, false)
 	keyButton.TextXAlignment = Enum.TextXAlignment.Center
 
 	local modes = {"Hold", "Toggle", "Always"}
@@ -1704,7 +1718,7 @@ function Section:AddKeybind(options)
 		end
 	}
 
-	table.insert(self.Window.Keybinds, bindData)
+	table.insert(window.Keybinds, bindData)
 
 	local api = {Flag = flag}
 	function api:Set(v, silent)
@@ -1713,7 +1727,7 @@ function Section:AddKeybind(options)
 			bindData.Key = key
 			keyButton.Text = key.Name
 			if flag then
-				self.Window.Flags[flag] = key
+				window.Flags[flag] = key
 			end
 			if not silent and options.Changed then
 				options.Changed(key, mode)
@@ -1724,7 +1738,7 @@ function Section:AddKeybind(options)
 				bindData.Key = key
 				keyButton.Text = key.Name
 				if flag then
-					self.Window.Flags[flag] = key
+					window.Flags[flag] = key
 				end
 			end
 			if v.Mode and validModes[v.Mode] then
@@ -1755,8 +1769,7 @@ function Section:AddKeybind(options)
 		end
 	end
 	function api:SetState(v)
-		state = not not v
-		bindData.State = state
+		bindData.State = not not v
 	end
 
 	keyButton.MouseButton1Click:Connect(function()
@@ -1788,7 +1801,7 @@ function Section:AddKeybind(options)
 			bindData.Key = key
 			keyButton.Text = key.Name
 			if flag then
-				self.Window.Flags[flag] = key
+				window.Flags[flag] = key
 			end
 			if options.Changed then
 				options.Changed(key, mode)
