@@ -5,6 +5,7 @@ local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local TextService = game:GetService("TextService")
 local HttpService = game:GetService("HttpService")
+local GuiService = game:GetService("GuiService")
 local CoreGui = game:GetService("CoreGui")
 
 local function ProtectGui(gui)
@@ -49,17 +50,9 @@ local function Clamp(x, a, b)
 	return math.max(a, math.min(b, x))
 end
 
-local function ApplyText(obj, size, color, bold)
-	obj.Font = bold and Enum.Font.SourceSansSemibold or Enum.Font.SourceSans
-	obj.TextSize = size
-	obj.TextColor3 = color
-	obj.TextXAlignment = Enum.TextXAlignment.Left
-	obj.TextYAlignment = Enum.TextYAlignment.Center
-end
-
-local function Corner(obj, radius)
+local function Round(obj, radius)
 	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, radius or 0)
+	c.CornerRadius = UDim.new(0, radius or 6)
 	c.Parent = obj
 	return c
 end
@@ -88,32 +81,22 @@ local function Tween(obj, info, props)
 	return tw
 end
 
-local ThemeDefaults = {
-	Background = Color3.fromRGB(26, 26, 34),
-	Topbar = Color3.fromRGB(34, 34, 44),
-	Sidebar = Color3.fromRGB(31, 31, 42),
-	Section = Color3.fromRGB(31, 31, 42),
-	Element = Color3.fromRGB(35, 35, 46),
-	Element2 = Color3.fromRGB(28, 28, 38),
-	Border = Color3.fromRGB(64, 64, 79),
-	BorderSoft = Color3.fromRGB(48, 48, 60),
-	Text = Color3.fromRGB(240, 240, 245),
-	SubText = Color3.fromRGB(170, 170, 180),
-	Accent = Color3.fromRGB(232, 40, 40),
-	AccentDark = Color3.fromRGB(140, 20, 20),
-	Success = Color3.fromRGB(80, 220, 120),
-	Danger = Color3.fromRGB(255, 80, 90),
-	Warning = Color3.fromRGB(225, 190, 60),
-}
+local function ApplyText(obj, size, color, bold)
+	obj.Font = bold and Enum.Font.SourceSansSemibold or Enum.Font.SourceSans
+	obj.TextSize = size
+	obj.TextColor3 = color
+	obj.TextXAlignment = Enum.TextXAlignment.Left
+	obj.TextYAlignment = Enum.TextYAlignment.Center
+end
 
-local Window = {}
-Window.__index = Window
-
-local Tab = {}
-Tab.__index = Tab
-
-local Section = {}
-Section.__index = Section
+local function BindCanvas(scroll, layout, extra)
+	local function update()
+		scroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + (extra or 0))
+	end
+	update()
+	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(update)
+	return update
+end
 
 local function MakeDraggable(handle, target)
 	local dragging = false
@@ -145,14 +128,32 @@ local function MakeDraggable(handle, target)
 	end)
 end
 
-local function BindCanvas(scroll, layout, extra)
-	local function update()
-		scroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + (extra or 0))
-	end
-	update()
-	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(update)
-	return update
-end
+local ThemeDefaults = {
+	Background = Color3.fromRGB(24, 24, 31),
+	Topbar = Color3.fromRGB(30, 30, 38),
+	Sidebar = Color3.fromRGB(28, 28, 36),
+	Section = Color3.fromRGB(30, 30, 39),
+	Element = Color3.fromRGB(38, 38, 49),
+	Element2 = Color3.fromRGB(27, 27, 35),
+	Border = Color3.fromRGB(60, 60, 74),
+	BorderSoft = Color3.fromRGB(48, 48, 60),
+	Text = Color3.fromRGB(240, 240, 245),
+	SubText = Color3.fromRGB(170, 170, 180),
+	Accent = Color3.fromRGB(232, 40, 40),
+	AccentDark = Color3.fromRGB(140, 20, 20),
+	Success = Color3.fromRGB(80, 220, 120),
+	Danger = Color3.fromRGB(255, 80, 90),
+	Warning = Color3.fromRGB(225, 190, 60),
+}
+
+local Window = {}
+Window.__index = Window
+
+local Tab = {}
+Tab.__index = Tab
+
+local Section = {}
+Section.__index = Section
 
 function Cerberus:CreateWindow(options)
 	options = options or {}
@@ -169,13 +170,14 @@ function Cerberus:CreateWindow(options)
 	selfWindow.Tabs = {}
 	selfWindow.Keybinds = {}
 	selfWindow.Name = options.Name or "Cerberus"
-	selfWindow.Width = options.Width or 925
-	selfWindow.Height = options.Height or 600
+	selfWindow.Width = options.Width or 860
+	selfWindow.Height = options.Height or 540
 	selfWindow.ToggleKey = options.ToggleKey or Enum.KeyCode.RightShift
 	selfWindow.ConfigFolder = options.ConfigFolder or "CerberusUI"
 	selfWindow.ConfigName = options.ConfigName or "default"
 	selfWindow.UIVisible = true
 	selfWindow.Minimized = false
+	selfWindow._themeRefs = {}
 
 	local old = GetParent():FindFirstChild("CerberusLibrary")
 	if old then
@@ -191,55 +193,68 @@ function Cerberus:CreateWindow(options)
 	})
 	ProtectGui(gui)
 
+	local topInset = GuiService:GetGuiInset().Y + 12
+
 	local root = Create("Frame", {
 		Name = "Root",
 		Size = UDim2.new(0, selfWindow.Width, 0, selfWindow.Height),
-		Position = UDim2.new(0.5, -selfWindow.Width / 2, 0.5, -selfWindow.Height / 2),
+		Position = UDim2.new(0.5, -selfWindow.Width / 2, 0.5, -selfWindow.Height / 2 + 8),
 		BackgroundColor3 = selfWindow.Theme.Background,
 		BorderColor3 = selfWindow.Theme.Border,
 		BorderSizePixel = 1,
-		Parent = gui
+		Parent = gui,
+		ClipsDescendants = true
 	})
+	Round(root, 8)
 
 	local topbar = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 32),
+		Size = UDim2.new(1, 0, 0, 30),
 		BackgroundColor3 = selfWindow.Theme.Topbar,
 		BorderSizePixel = 0,
 		Parent = root
 	})
+	Round(topbar, 8)
+
+	local topbarFix = Create("Frame", {
+		BackgroundColor3 = selfWindow.Theme.Topbar,
+		BorderSizePixel = 0,
+		Position = UDim2.new(0, 0, 1, -8),
+		Size = UDim2.new(1, 0, 0, 8),
+		Parent = topbar
+	})
 
 	local title = Create("TextLabel", {
 		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 8, 0, 0),
+		Position = UDim2.new(0, 10, 0, 0),
 		Size = UDim2.new(1, -80, 1, 0),
 		Text = selfWindow.Name,
 		Parent = topbar
 	})
-	ApplyText(title, 22, selfWindow.Theme.Text, true)
+	ApplyText(title, 21, selfWindow.Theme.Text, true)
 
 	local minimize = Create("TextButton", {
 		BackgroundTransparency = 1,
-		Position = UDim2.new(1, -52, 0, 0),
-		Size = UDim2.new(0, 24, 1, 0),
+		Position = UDim2.new(1, -50, 0, 0),
+		Size = UDim2.new(0, 22, 1, 0),
 		Text = "—",
 		Parent = topbar
 	})
-	ApplyText(minimize, 20, selfWindow.Theme.SubText, false)
+	ApplyText(minimize, 18, selfWindow.Theme.SubText, false)
 	minimize.TextXAlignment = Enum.TextXAlignment.Center
 
 	local close = Create("TextButton", {
 		BackgroundTransparency = 1,
 		Position = UDim2.new(1, -26, 0, 0),
-		Size = UDim2.new(0, 24, 1, 0),
+		Size = UDim2.new(0, 22, 1, 0),
 		Text = "×",
 		Parent = topbar
 	})
-	ApplyText(close, 22, selfWindow.Theme.SubText, false)
+	ApplyText(close, 20, selfWindow.Theme.SubText, false)
 	close.TextXAlignment = Enum.TextXAlignment.Center
 
 	local sidebar = Create("Frame", {
-		Position = UDim2.new(0, 0, 0, 32),
-		Size = UDim2.new(0, 214, 1, -32),
+		Position = UDim2.new(0, 0, 0, 30),
+		Size = UDim2.new(0, 200, 1, -30),
 		BackgroundColor3 = selfWindow.Theme.Sidebar,
 		BorderSizePixel = 0,
 		Parent = root
@@ -259,23 +274,23 @@ function Cerberus:CreateWindow(options)
 	BindCanvas(tabScroll, tabLayout, 8)
 
 	local main = Create("Frame", {
-		Position = UDim2.new(0, 214, 0, 32),
-		Size = UDim2.new(1, -214, 1, -32),
+		Position = UDim2.new(0, 200, 0, 30),
+		Size = UDim2.new(1, -200, 1, -30),
 		BackgroundTransparency = 1,
 		Parent = root
 	})
 
 	local pages = Create("Frame", {
-		Position = UDim2.new(0, 5, 0, 5),
-		Size = UDim2.new(1, -10, 1, -10),
+		Position = UDim2.new(0, 6, 0, 6),
+		Size = UDim2.new(1, -12, 1, -12),
 		BackgroundTransparency = 1,
 		Parent = main
 	})
 
 	local notifHolder = Create("Frame", {
 		BackgroundTransparency = 1,
-		Size = UDim2.new(0, 330, 1, -20),
-		Position = UDim2.new(1, -340, 0, 10),
+		Size = UDim2.new(0, 310, 1, -20),
+		Position = UDim2.new(1, -320, 0, 10),
 		Parent = gui
 	})
 	local notifLayout = List(notifHolder, 6)
@@ -285,10 +300,11 @@ function Cerberus:CreateWindow(options)
 		BackgroundColor3 = selfWindow.Theme.Topbar,
 		BorderColor3 = selfWindow.Theme.Border,
 		BorderSizePixel = 1,
-		Position = UDim2.new(0, 12, 0, 12),
+		Position = UDim2.new(0, 12, 0, topInset + 10),
 		Size = UDim2.new(0, 180, 0, 24),
 		Parent = gui
 	})
+	Round(watermark, 7)
 
 	local watermarkAccent = Create("Frame", {
 		BackgroundColor3 = selfWindow.Theme.Accent,
@@ -296,6 +312,7 @@ function Cerberus:CreateWindow(options)
 		Size = UDim2.new(0, 3, 1, 0),
 		Parent = watermark
 	})
+	Round(watermarkAccent, 7)
 
 	local watermarkText = Create("TextLabel", {
 		BackgroundTransparency = 1,
@@ -304,7 +321,7 @@ function Cerberus:CreateWindow(options)
 		Text = selfWindow.Name .. " | Ready",
 		Parent = watermark
 	})
-	ApplyText(watermarkText, 17, selfWindow.Theme.Text, true)
+	ApplyText(watermarkText, 16, selfWindow.Theme.Text, true)
 
 	selfWindow.Gui = gui
 	selfWindow.Root = root
@@ -330,13 +347,13 @@ function Cerberus:CreateWindow(options)
 		if state then
 			self.Sidebar.Visible = false
 			self.Pages.Visible = false
-			Tween(self.Root, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Size = UDim2.new(0, self.Width, 0, 32)
+			Tween(self.Root, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Size = UDim2.new(0, self.Width, 0, 30)
 			})
 		else
 			self.Sidebar.Visible = true
 			self.Pages.Visible = true
-			Tween(self.Root, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Tween(self.Root, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 				Size = UDim2.new(0, self.Width, 0, self.Height)
 			})
 		end
@@ -345,7 +362,7 @@ function Cerberus:CreateWindow(options)
 	function selfWindow:SetWatermark(text)
 		self.WatermarkText.Text = tostring(text)
 		local size = TextService:GetTextSize(self.WatermarkText.Text, self.WatermarkText.TextSize, self.WatermarkText.Font, Vector2.new(1000, 24))
-		self.Watermark.Size = UDim2.new(0, size.X + 16, 0, 24)
+		self.Watermark.Size = UDim2.new(0, size.X + 18, 0, 24)
 	end
 
 	function selfWindow:Notify(data)
@@ -360,8 +377,10 @@ function Cerberus:CreateWindow(options)
 			BorderColor3 = self.Theme.Border,
 			BorderSizePixel = 1,
 			Size = UDim2.new(1, 0, 0, 54),
-			Parent = self.NotificationHolder
+			Parent = self.NotificationHolder,
+			BackgroundTransparency = 1
 		})
+		Round(card, 7)
 
 		local left = Create("Frame", {
 			BackgroundColor3 = color,
@@ -369,15 +388,17 @@ function Cerberus:CreateWindow(options)
 			Size = UDim2.new(0, 3, 1, 0),
 			Parent = card
 		})
+		Round(left, 7)
 
 		local titleLabel = Create("TextLabel", {
 			BackgroundTransparency = 1,
 			Position = UDim2.new(0, 10, 0, 4),
 			Size = UDim2.new(1, -16, 0, 18),
 			Text = titleText,
+			TextTransparency = 1,
 			Parent = card
 		})
-		ApplyText(titleLabel, 18, self.Theme.Text, true)
+		ApplyText(titleLabel, 17, self.Theme.Text, true)
 
 		local contentLabel = Create("TextLabel", {
 			BackgroundTransparency = 1,
@@ -386,17 +407,14 @@ function Cerberus:CreateWindow(options)
 			TextWrapped = true,
 			TextYAlignment = Enum.TextYAlignment.Top,
 			Text = contentText,
+			TextTransparency = 1,
 			Parent = card
 		})
-		ApplyText(contentLabel, 16, self.Theme.SubText, false)
+		ApplyText(contentLabel, 15, self.Theme.SubText, false)
 
-		local textSize = TextService:GetTextSize(contentText, 16, contentLabel.Font, Vector2.new(300, 1000))
-		local height = math.max(54, 28 + textSize.Y + 8)
+		local textSize = TextService:GetTextSize(contentText, 15, contentLabel.Font, Vector2.new(280, 1000))
+		local height = math.max(50, 28 + textSize.Y + 8)
 		card.Size = UDim2.new(1, 0, 0, height)
-
-		card.BackgroundTransparency = 1
-		titleLabel.TextTransparency = 1
-		contentLabel.TextTransparency = 1
 		card.Position = UDim2.new(1, 20, 0, 0)
 
 		Tween(card, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -414,8 +432,8 @@ function Cerberus:CreateWindow(options)
 				BackgroundTransparency = 1,
 				Position = UDim2.new(1, 20, 0, 0)
 			})
-			Tween(titleLabel, TweenInfo.new(0.15), {TextTransparency = 1})
-			Tween(contentLabel, TweenInfo.new(0.15), {TextTransparency = 1})
+			Tween(titleLabel, TweenInfo.new(0.14), {TextTransparency = 1})
+			Tween(contentLabel, TweenInfo.new(0.14), {TextTransparency = 1})
 			task.delay(0.2, function()
 				if card.Parent then
 					card:Destroy()
@@ -430,19 +448,6 @@ function Cerberus:CreateWindow(options)
 		for k, v in pairs(patch) do
 			self.Theme[k] = v
 		end
-
-		root.BackgroundColor3 = self.Theme.Background
-		root.BorderColor3 = self.Theme.Border
-		topbar.BackgroundColor3 = self.Theme.Topbar
-		sidebar.BackgroundColor3 = self.Theme.Sidebar
-		tabScroll.ScrollBarImageColor3 = self.Theme.Border
-		title.TextColor3 = self.Theme.Text
-		minimize.TextColor3 = self.Theme.SubText
-		close.TextColor3 = self.Theme.SubText
-		watermark.BackgroundColor3 = self.Theme.Topbar
-		watermark.BorderColor3 = self.Theme.Border
-		watermarkAccent.BackgroundColor3 = self.Theme.Accent
-		watermarkText.TextColor3 = self.Theme.Text
 	end
 
 	function selfWindow:GetTheme()
@@ -450,24 +455,13 @@ function Cerberus:CreateWindow(options)
 	end
 
 	function selfWindow:SaveConfig(name)
-		local payload = {
-			Flags = {},
-			Theme = {}
-		}
+		local payload = {Flags = {}, Theme = {}}
 
 		for k, v in pairs(self.Flags) do
 			if typeof(v) == "Color3" then
-				payload.Flags[k] = {
-					__type = "Color3",
-					R = v.R,
-					G = v.G,
-					B = v.B
-				}
+				payload.Flags[k] = {__type = "Color3", R = v.R, G = v.G, B = v.B}
 			elseif typeof(v) == "EnumItem" and v.EnumType == Enum.KeyCode then
-				payload.Flags[k] = {
-					__type = "KeyCode",
-					Value = v.Name
-				}
+				payload.Flags[k] = {__type = "KeyCode", Value = v.Name}
 			else
 				payload.Flags[k] = v
 			end
@@ -602,11 +596,12 @@ function Window:CreateTab(options)
 	local button = Create("TextButton", {
 		BackgroundColor3 = self.Theme.Sidebar,
 		BorderSizePixel = 0,
-		Size = UDim2.new(1, 0, 0, 34),
+		Size = UDim2.new(1, 0, 0, 32),
 		Text = "",
 		AutoButtonColor = false,
 		Parent = self.TabScroll
 	})
+	Round(button, 6)
 
 	local activeBar = Create("Frame", {
 		BackgroundColor3 = self.Theme.Accent,
@@ -615,12 +610,13 @@ function Window:CreateTab(options)
 		Visible = false,
 		Parent = button
 	})
+	Round(activeBar, 6)
 
 	if tab.Icon then
 		local icon = Create("ImageLabel", {
 			BackgroundTransparency = 1,
-			Position = UDim2.new(0, 16, 0.5, -10),
-			Size = UDim2.new(0, 20, 0, 20),
+			Position = UDim2.new(0, 14, 0.5, -9),
+			Size = UDim2.new(0, 18, 0, 18),
 			Image = tab.Icon,
 			ImageColor3 = self.Theme.Text,
 			Parent = button
@@ -630,21 +626,22 @@ function Window:CreateTab(options)
 		local box = Create("Frame", {
 			BackgroundColor3 = self.Theme.Text,
 			BorderSizePixel = 0,
-			Position = UDim2.new(0, 18, 0.5, -6),
-			Size = UDim2.new(0, 12, 0, 12),
+			Position = UDim2.new(0, 16, 0.5, -5),
+			Size = UDim2.new(0, 10, 0, 10),
 			Parent = button
 		})
+		Round(box, 4)
 		tab.IconObject = box
 	end
 
 	local label = Create("TextLabel", {
 		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 44, 0, 0),
-		Size = UDim2.new(1, -52, 1, 0),
+		Position = UDim2.new(0, 40, 0, 0),
+		Size = UDim2.new(1, -48, 1, 0),
 		Text = tab.Name,
 		Parent = button
 	})
-	ApplyText(label, 19, self.Theme.SubText, false)
+	ApplyText(label, 18, self.Theme.SubText, false)
 
 	local page = Create("Frame", {
 		BackgroundTransparency = 1,
@@ -657,7 +654,7 @@ function Window:CreateTab(options)
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Position = UDim2.new(0, 0, 0, 0),
-		Size = UDim2.new(0.5, -4, 1, 0),
+		Size = UDim2.new(0.5, -4, 1, -2),
 		CanvasSize = UDim2.new(),
 		ScrollBarThickness = 2,
 		ScrollBarImageColor3 = self.Theme.Border,
@@ -668,7 +665,7 @@ function Window:CreateTab(options)
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Position = UDim2.new(0.5, 4, 0, 0),
-		Size = UDim2.new(0.5, -4, 1, 0),
+		Size = UDim2.new(0.5, -4, 1, -2),
 		CanvasSize = UDim2.new(),
 		ScrollBarThickness = 2,
 		ScrollBarImageColor3 = self.Theme.Border,
@@ -677,8 +674,8 @@ function Window:CreateTab(options)
 
 	local leftLayout = List(left, 6)
 	local rightLayout = List(right, 6)
-	BindCanvas(left, leftLayout, 8)
-	BindCanvas(right, rightLayout, 8)
+	BindCanvas(left, leftLayout, 10)
+	BindCanvas(right, rightLayout, 10)
 
 	tab.Button = button
 	tab.ActiveBar = activeBar
@@ -691,13 +688,13 @@ function Window:CreateTab(options)
 		for _, t in ipairs(self.Window.Tabs) do
 			t.Page.Visible = false
 			t.ActiveBar.Visible = false
-			t.Button.BackgroundColor3 = self.Window.Theme.Sidebar
+			Tween(t.Button, TweenInfo.new(0.12), {BackgroundColor3 = self.Window.Theme.Sidebar})
 			t.Label.TextColor3 = self.Window.Theme.SubText
 		end
 
 		self.Page.Visible = true
 		self.ActiveBar.Visible = true
-		self.Button.BackgroundColor3 = self.Window.Theme.Section
+		Tween(self.Button, TweenInfo.new(0.12), {BackgroundColor3 = self.Window.Theme.Section})
 		self.Label.TextColor3 = self.Window.Theme.Text
 	end
 
@@ -730,16 +727,18 @@ function Tab:CreateSection(options)
 		BackgroundColor3 = self.Window.Theme.Section,
 		BorderColor3 = self.Window.Theme.Border,
 		BorderSizePixel = 1,
-		Size = UDim2.new(1, 0, 0, 34),
-		Parent = parentColumn
+		Size = UDim2.new(1, 0, 0, 32),
+		Parent = parentColumn,
+		ClipsDescendants = true
 	})
+	Round(holder, 7)
 
-	Padding(holder, 4, 4, 4, 4)
+	Padding(holder, 5, 5, 5, 5)
 	List(holder, 4)
 
 	local header = Create("TextButton", {
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 20),
+		Size = UDim2.new(1, 0, 0, 18),
 		Text = "",
 		AutoButtonColor = false,
 		Parent = holder
@@ -751,16 +750,16 @@ function Tab:CreateSection(options)
 		Text = section.Title,
 		Parent = header
 	})
-	ApplyText(title, 20, self.Window.Theme.Text, false)
+	ApplyText(title, 18, self.Window.Theme.Text, false)
 
 	local arrow = Create("TextLabel", {
 		BackgroundTransparency = 1,
-		Position = UDim2.new(1, -20, 0, 0),
-		Size = UDim2.new(0, 20, 1, 0),
+		Position = UDim2.new(1, -18, 0, 0),
+		Size = UDim2.new(0, 18, 1, 0),
 		Text = "⌄",
 		Parent = header
 	})
-	ApplyText(arrow, 16, self.Window.Theme.SubText, false)
+	ApplyText(arrow, 14, self.Window.Theme.SubText, false)
 	arrow.TextXAlignment = Enum.TextXAlignment.Center
 
 	local line = Create("Frame", {
@@ -780,10 +779,12 @@ function Tab:CreateSection(options)
 
 	function section:Refresh()
 		local contentHeight = contentLayout.AbsoluteContentSize.Y
-		local base = 4 + 20 + 4 + 2 + 4
+		local base = 5 + 18 + 4 + 2 + 5
 		content.Visible = not section.Collapsed
 		arrow.Text = section.Collapsed and ">" or "⌄"
-		holder.Size = UDim2.new(1, 0, 0, section.Collapsed and base or (base + contentHeight))
+		Tween(holder, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.new(1, 0, 0, section.Collapsed and base or (base + contentHeight))
+		})
 	end
 
 	contentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
@@ -819,18 +820,20 @@ function Section:AddLabel(options)
 		BackgroundColor3 = window.Theme.Element2,
 		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
-		Size = UDim2.new(1, 0, 0, 22),
-		Parent = self.Content
+		Size = UDim2.new(1, 0, 0, 20),
+		Parent = self.Content,
+		ClipsDescendants = true
 	})
+	Round(frame, 6)
 
 	local text = Create("TextLabel", {
 		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 4, 0, 0),
-		Size = UDim2.new(1, -8, 1, 0),
+		Position = UDim2.new(0, 6, 0, 0),
+		Size = UDim2.new(1, -12, 1, 0),
 		Text = options.Text or "Label",
 		Parent = frame
 	})
-	ApplyText(text, 18, window.Theme.Text, false)
+	ApplyText(text, 17, window.Theme.Text, false)
 
 	local api = {}
 	function api:Set(v)
@@ -848,35 +851,37 @@ function Section:AddParagraph(options)
 		BackgroundColor3 = window.Theme.Element2,
 		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
-		Size = UDim2.new(1, 0, 0, 40),
-		Parent = self.Content
+		Size = UDim2.new(1, 0, 0, 38),
+		Parent = self.Content,
+		ClipsDescendants = true
 	})
+	Round(frame, 6)
 
 	local title = Create("TextLabel", {
 		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 4, 0, 2),
-		Size = UDim2.new(1, -8, 0, 18),
+		Position = UDim2.new(0, 6, 0, 2),
+		Size = UDim2.new(1, -12, 0, 16),
 		Text = options.Title or "Paragraph",
 		Parent = frame
 	})
-	ApplyText(title, 18, window.Theme.Text, true)
+	ApplyText(title, 17, window.Theme.Text, true)
 
 	local body = Create("TextLabel", {
 		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 4, 0, 20),
-		Size = UDim2.new(1, -8, 0, 18),
+		Position = UDim2.new(0, 6, 0, 18),
+		Size = UDim2.new(1, -12, 0, 16),
 		TextWrapped = true,
 		TextYAlignment = Enum.TextYAlignment.Top,
 		Text = options.Content or "",
 		Parent = frame
 	})
-	ApplyText(body, 16, window.Theme.SubText, false)
+	ApplyText(body, 15, window.Theme.SubText, false)
 
 	local function resize()
-		local width = math.max(frame.AbsoluteSize.X - 8, 50)
-		local bound = TextService:GetTextSize(body.Text, 16, body.Font, Vector2.new(width, 9999))
-		frame.Size = UDim2.new(1, 0, 0, 24 + bound.Y + 4)
-		body.Size = UDim2.new(1, -8, 0, bound.Y)
+		local width = math.max(frame.AbsoluteSize.X - 12, 50)
+		local bound = TextService:GetTextSize(body.Text, 15, body.Font, Vector2.new(width, 9999))
+		frame.Size = UDim2.new(1, 0, 0, 22 + bound.Y + 4)
+		body.Size = UDim2.new(1, -12, 0, bound.Y)
 		self:Refresh()
 	end
 
@@ -903,26 +908,40 @@ function Section:AddButton(options)
 		BackgroundColor3 = window.Theme.Element2,
 		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
-		Size = UDim2.new(1, 0, 0, 22),
+		Size = UDim2.new(1, 0, 0, 20),
 		Text = "",
 		AutoButtonColor = false,
 		Parent = self.Content
 	})
+	Round(button, 6)
 
 	local text = Create("TextLabel", {
 		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 4, 0, 0),
-		Size = UDim2.new(1, -8, 1, 0),
+		Position = UDim2.new(0, 6, 0, 0),
+		Size = UDim2.new(1, -12, 1, 0),
 		Text = options.Text or "Button",
 		Parent = button
 	})
-	ApplyText(text, 18, window.Theme.Text, false)
+	ApplyText(text, 17, window.Theme.Text, false)
+
+	button.MouseEnter:Connect(function()
+		Tween(button, TweenInfo.new(0.1), {BackgroundColor3 = window.Theme.Element})
+	end)
+
+	button.MouseLeave:Connect(function()
+		Tween(button, TweenInfo.new(0.1), {BackgroundColor3 = window.Theme.Element2})
+	end)
 
 	button.MouseButton1Click:Connect(function()
-		Tween(button, TweenInfo.new(0.08), {BackgroundColor3 = window.Theme.Element})
-		task.delay(0.08, function()
+		Tween(button, TweenInfo.new(0.06), {BackgroundColor3 = window.Theme.AccentDark})
+		task.delay(0.06, function()
 			if button.Parent then
-				Tween(button, TweenInfo.new(0.08), {BackgroundColor3 = window.Theme.Element2})
+				Tween(button, TweenInfo.new(0.08), {BackgroundColor3 = window.Theme.Element})
+				task.delay(0.08, function()
+					if button.Parent then
+						Tween(button, TweenInfo.new(0.08), {BackgroundColor3 = window.Theme.Element2})
+					end
+				end)
 			end
 		end)
 		if options.Callback then
@@ -955,7 +974,7 @@ function Section:AddToggle(options)
 
 	local row = Create("TextButton", {
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 20),
+		Size = UDim2.new(1, 0, 0, 18),
 		Text = "",
 		AutoButtonColor = false,
 		Parent = self.Content
@@ -965,33 +984,37 @@ function Section:AddToggle(options)
 		BackgroundColor3 = window.Theme.Element2,
 		BorderColor3 = window.Theme.Border,
 		BorderSizePixel = 1,
-		Position = UDim2.new(0, 0, 0.5, -6),
-		Size = UDim2.new(0, 12, 0, 12),
+		Position = UDim2.new(0, 0, 0.5, -5),
+		Size = UDim2.new(0, 10, 0, 10),
 		Parent = row
 	})
+	Round(box, 3)
 
 	local fill = Create("Frame", {
 		BackgroundColor3 = window.Theme.Accent,
 		BorderSizePixel = 0,
 		Position = UDim2.new(0, 2, 0, 2),
 		Size = UDim2.new(1, -4, 1, -4),
-		Visible = state,
+		BackgroundTransparency = state and 0 or 1,
 		Parent = box
 	})
+	Round(fill, 2)
 
 	local text = Create("TextLabel", {
 		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 18, 0, 0),
-		Size = UDim2.new(1, -18, 1, 0),
+		Position = UDim2.new(0, 16, 0, 0),
+		Size = UDim2.new(1, -16, 1, 0),
 		Text = options.Text or "Toggle",
 		Parent = row
 	})
-	ApplyText(text, 18, window.Theme.Text, false)
+	ApplyText(text, 17, window.Theme.Text, false)
 
 	local api = {Flag = flag}
 	function api:Set(v, silent)
 		state = not not v
-		fill.Visible = state
+		Tween(fill, TweenInfo.new(0.1), {
+			BackgroundTransparency = state and 0 or 1
+		})
 		if flag then
 			window.Flags[flag] = state
 		end
@@ -1015,6 +1038,7 @@ function Section:AddTextbox(options)
 	local window = self.Window
 	local flag = options.Flag
 	local value = options.Default or ""
+	local maxLength = options.MaxLength or 18
 
 	if flag then
 		window.Flags[flag] = value
@@ -1022,34 +1046,51 @@ function Section:AddTextbox(options)
 
 	local row = Create("Frame", {
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 24),
+		Size = UDim2.new(1, 0, 0, 22),
 		Parent = self.Content
 	})
 
 	local label = Create("TextLabel", {
 		BackgroundTransparency = 1,
-		Size = UDim2.new(0.46, 0, 1, 0),
+		Size = UDim2.new(0.48, 0, 1, 0),
 		Text = options.Text or "Textbox",
 		Parent = row
 	})
-	ApplyText(label, 18, window.Theme.Text, false)
+	ApplyText(label, 17, window.Theme.Text, false)
 
 	local box = Create("TextBox", {
 		BackgroundColor3 = window.Theme.Element2,
 		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
-		Position = UDim2.new(1, -82, 0, 2),
-		Size = UDim2.new(0, 82, 1, -4),
+		Position = UDim2.new(1, -86, 0, 1),
+		Size = UDim2.new(0, 86, 1, -2),
 		Text = value,
 		PlaceholderText = options.Placeholder or "Type here...",
 		ClearTextOnFocus = false,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		ClipsDescendants = true,
 		Parent = row
 	})
-	ApplyText(box, 16, window.Theme.SubText, false)
+	Round(box, 5)
+	ApplyText(box, 15, window.Theme.SubText, false)
+
+	box:GetPropertyChangedSignal("Text"):Connect(function()
+		if #box.Text > maxLength then
+			box.Text = string.sub(box.Text, 1, maxLength)
+			box.CursorPosition = #box.Text + 1
+		end
+	end)
+
+	box.Focused:Connect(function()
+		Tween(box, TweenInfo.new(0.1), {BorderColor3 = window.Theme.Accent})
+	end)
 
 	local api = {Flag = flag}
 	function api:Set(v, silent)
 		value = tostring(v)
+		if #value > maxLength then
+			value = string.sub(value, 1, maxLength)
+		end
 		box.Text = value
 		if flag then
 			window.Flags[flag] = value
@@ -1063,6 +1104,7 @@ function Section:AddTextbox(options)
 	end
 
 	box.FocusLost:Connect(function(enterPressed)
+		Tween(box, TweenInfo.new(0.1), {BorderColor3 = window.Theme.BorderSoft})
 		value = box.Text
 		if flag then
 			window.Flags[flag] = value
@@ -1091,36 +1133,37 @@ function Section:AddSlider(options)
 
 	local row = Create("Frame", {
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 38),
+		Size = UDim2.new(1, 0, 0, 34),
 		Parent = self.Content
 	})
 
 	local label = Create("TextLabel", {
 		BackgroundTransparency = 1,
-		Size = UDim2.new(0.7, 0, 0, 16),
+		Size = UDim2.new(0.7, 0, 0, 14),
 		Text = options.Text or "Slider",
 		Parent = row
 	})
-	ApplyText(label, 18, window.Theme.Text, false)
+	ApplyText(label, 17, window.Theme.Text, false)
 
 	local number = Create("TextLabel", {
 		BackgroundTransparency = 1,
 		Position = UDim2.new(1, -40, 0, 0),
-		Size = UDim2.new(0, 40, 0, 16),
+		Size = UDim2.new(0, 40, 0, 14),
 		Text = tostring(value),
 		Parent = row
 	})
-	ApplyText(number, 18, window.Theme.SubText, false)
+	ApplyText(number, 17, window.Theme.SubText, false)
 	number.TextXAlignment = Enum.TextXAlignment.Right
 
 	local bar = Create("Frame", {
 		BackgroundColor3 = window.Theme.Element2,
 		BorderColor3 = window.Theme.Border,
 		BorderSizePixel = 1,
-		Position = UDim2.new(0, 0, 0, 20),
-		Size = UDim2.new(1, 0, 0, 12),
+		Position = UDim2.new(0, 0, 0, 18),
+		Size = UDim2.new(1, 0, 0, 10),
 		Parent = row
 	})
+	Round(bar, 5)
 
 	local fill = Create("Frame", {
 		BackgroundColor3 = window.Theme.Accent,
@@ -1128,6 +1171,17 @@ function Section:AddSlider(options)
 		Size = UDim2.new(0, 0, 1, 0),
 		Parent = bar
 	})
+	Round(fill, 5)
+
+	local knob = Create("Frame", {
+		BackgroundColor3 = window.Theme.Text,
+		BorderSizePixel = 0,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(1, 0, 0.5, 0),
+		Size = UDim2.new(0, 4, 0, 4),
+		Parent = fill
+	})
+	Round(knob, 4)
 
 	local api = {Flag = flag}
 
@@ -1142,7 +1196,9 @@ function Section:AddSlider(options)
 
 		value = v
 		local pct = (value - min) / (max - min)
-		fill.Size = UDim2.new(pct, 0, 1, 0)
+		Tween(fill, TweenInfo.new(dragging and 0.03 or 0.08), {
+			Size = UDim2.new(pct, 0, 1, 0)
+		})
 		number.Text = tostring(value)
 
 		if flag then
@@ -1203,7 +1259,7 @@ function Section:AddDropdown(options)
 
 	local holder = Create("Frame", {
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, searchable and 48 or 24),
+		Size = UDim2.new(1, 0, 0, searchable and 46 or 22),
 		Parent = self.Content
 	})
 
@@ -1211,20 +1267,22 @@ function Section:AddDropdown(options)
 		BackgroundColor3 = window.Theme.Element2,
 		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
-		Size = UDim2.new(1, 0, 0, 22),
+		Size = UDim2.new(1, 0, 0, 20),
 		Text = "",
 		AutoButtonColor = false,
 		Parent = holder
 	})
+	Round(button, 6)
 
 	local label = Create("TextLabel", {
 		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 4, 0, 0),
-		Size = UDim2.new(1, -20, 1, 0),
+		Position = UDim2.new(0, 6, 0, 0),
+		Size = UDim2.new(1, -22, 1, 0),
 		Text = options.Text or "Dropdown",
 		Parent = button
 	})
-	ApplyText(label, 18, window.Theme.Text, false)
+	ApplyText(label, 17, window.Theme.Text, false)
+	label.TextTruncate = Enum.TextTruncate.AtEnd
 
 	local arrow = Create("TextLabel", {
 		BackgroundTransparency = 1,
@@ -1233,7 +1291,7 @@ function Section:AddDropdown(options)
 		Text = "^",
 		Parent = button
 	})
-	ApplyText(arrow, 16, window.Theme.SubText, false)
+	ApplyText(arrow, 14, window.Theme.SubText, false)
 	arrow.TextXAlignment = Enum.TextXAlignment.Center
 
 	local search = Create("TextBox", {
@@ -1241,25 +1299,28 @@ function Section:AddDropdown(options)
 		BackgroundColor3 = window.Theme.Element2,
 		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
-		Position = UDim2.new(0, 0, 0, 26),
-		Size = UDim2.new(1, 0, 0, 20),
+		Position = UDim2.new(0, 0, 0, 24),
+		Size = UDim2.new(1, 0, 0, 18),
 		Text = "",
 		PlaceholderText = options.Placeholder or "Search...",
 		ClearTextOnFocus = false,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Parent = holder
 	})
-	ApplyText(search, 16, window.Theme.SubText, false)
+	Round(search, 6)
+	ApplyText(search, 14, window.Theme.SubText, false)
 
 	local dropFrame = Create("Frame", {
 		BackgroundColor3 = window.Theme.Section,
 		BorderColor3 = window.Theme.Border,
 		BorderSizePixel = 1,
-		Position = UDim2.new(0, 0, 0, searchable and 50 or 24),
+		Position = UDim2.new(0, 0, 0, searchable and 46 or 22),
 		Size = UDim2.new(1, 0, 0, 0),
 		Visible = false,
 		ClipsDescendants = true,
 		Parent = holder
 	})
+	Round(dropFrame, 6)
 
 	local scroll = Create("ScrollingFrame", {
 		BackgroundTransparency = 1,
@@ -1335,12 +1396,21 @@ function Section:AddDropdown(options)
 					BackgroundColor3 = window.Theme.Element2,
 					BorderColor3 = window.Theme.BorderSoft,
 					BorderSizePixel = 1,
-					Size = UDim2.new(1, 0, 0, 20),
+					Size = UDim2.new(1, 0, 0, 18),
 					Text = textValue,
 					AutoButtonColor = false,
 					Parent = scroll
 				})
-				ApplyText(itemButton, 17, window.Theme.Text, false)
+				Round(itemButton, 5)
+				ApplyText(itemButton, 15, window.Theme.Text, false)
+
+				itemButton.MouseEnter:Connect(function()
+					Tween(itemButton, TweenInfo.new(0.08), {BackgroundColor3 = window.Theme.Element})
+				end)
+
+				itemButton.MouseLeave:Connect(function()
+					Tween(itemButton, TweenInfo.new(0.08), {BackgroundColor3 = window.Theme.Element2})
+				end)
 
 				itemButton.MouseButton1Click:Connect(function()
 					if multi then
@@ -1362,11 +1432,18 @@ function Section:AddDropdown(options)
 			end
 		end
 
-		local height = math.min(count * 22 + 4, 132)
-		holder.Size = UDim2.new(1, 0, 0, (searchable and 48 or 24) + (opened and height + 4 or 0))
-		dropFrame.Visible = opened
-		dropFrame.Size = UDim2.new(1, 0, 0, opened and height or 0)
+		local height = math.min(count * 20 + 4, 120)
+		holder.Size = UDim2.new(1, 0, 0, (searchable and 46 or 22) + (opened and height + 4 or 0))
+		dropFrame.Visible = true
 		arrow.Text = opened and "⌄" or "^"
+		Tween(dropFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.new(1, 0, 0, opened and height or 0)
+		})
+		task.delay(0.12, function()
+			if dropFrame.Parent and not opened then
+				dropFrame.Visible = false
+			end
+		end)
 		self:Refresh()
 	end
 
@@ -1429,6 +1506,7 @@ function Section:AddColorPicker(options)
 	local opened = false
 	local svDrag = false
 	local hueDrag = false
+	local suppressCallback = false
 
 	if flag then
 		window.Flags[flag] = color
@@ -1436,7 +1514,7 @@ function Section:AddColorPicker(options)
 
 	local holder = Create("Frame", {
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 24),
+		Size = UDim2.new(1, 0, 0, 22),
 		Parent = self.Content
 	})
 
@@ -1444,30 +1522,31 @@ function Section:AddColorPicker(options)
 		BackgroundColor3 = window.Theme.Element2,
 		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
-		Size = UDim2.new(1, 0, 0, 22),
+		Size = UDim2.new(1, 0, 0, 20),
 		Text = "",
 		AutoButtonColor = false,
 		Parent = holder
 	})
+	Round(button, 6)
 
 	local label = Create("TextLabel", {
 		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 4, 0, 0),
+		Position = UDim2.new(0, 6, 0, 0),
 		Size = UDim2.new(1, -42, 1, 0),
 		Text = options.Text or "ColorWheel",
 		Parent = button
 	})
-	ApplyText(label, 18, window.Theme.Text, false)
+	ApplyText(label, 17, window.Theme.Text, false)
 
 	local preview = Create("Frame", {
 		BackgroundColor3 = color,
 		BorderColor3 = window.Theme.Border,
 		BorderSizePixel = 1,
-		Position = UDim2.new(1, -28, 0.5, -6),
-		Size = UDim2.new(0, 12, 0, 12),
+		Position = UDim2.new(1, -28, 0.5, -5),
+		Size = UDim2.new(0, 10, 0, 10),
 		Parent = button
 	})
-	Corner(preview, 12)
+	Round(preview, 10)
 
 	local arrow = Create("TextLabel", {
 		BackgroundTransparency = 1,
@@ -1476,31 +1555,33 @@ function Section:AddColorPicker(options)
 		Text = "^",
 		Parent = button
 	})
-	ApplyText(arrow, 16, window.Theme.SubText, false)
+	ApplyText(arrow, 14, window.Theme.SubText, false)
 	arrow.TextXAlignment = Enum.TextXAlignment.Center
 
 	local picker = Create("Frame", {
 		BackgroundColor3 = window.Theme.Section,
 		BorderColor3 = window.Theme.Border,
 		BorderSizePixel = 1,
-		Position = UDim2.new(0, 0, 0, 26),
+		Position = UDim2.new(0, 0, 0, 24),
 		Size = UDim2.new(1, 0, 0, 0),
 		Visible = false,
 		ClipsDescendants = true,
 		Parent = holder
 	})
+	Round(picker, 6)
 
 	local sv = Create("ImageButton", {
 		BackgroundColor3 = Color3.fromHSV(h, 1, 1),
 		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
 		Position = UDim2.new(0, 4, 0, 4),
-		Size = UDim2.new(1, -16, 0, 86),
+		Size = UDim2.new(1, -16, 0, 82),
 		Image = "rbxassetid://4155801252",
 		ScaleType = Enum.ScaleType.Stretch,
 		AutoButtonColor = false,
 		Parent = picker
 	})
+	Round(sv, 5)
 
 	local svCursor = Create("Frame", {
 		BackgroundColor3 = Color3.new(1, 1, 1),
@@ -1510,19 +1591,20 @@ function Section:AddColorPicker(options)
 		Size = UDim2.new(0, 6, 0, 6),
 		Parent = sv
 	})
-	Corner(svCursor, 6)
+	Round(svCursor, 6)
 
 	local hue = Create("ImageButton", {
 		BackgroundColor3 = Color3.new(1, 1, 1),
 		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
 		Position = UDim2.new(1, -10, 0, 4),
-		Size = UDim2.new(0, 6, 0, 86),
+		Size = UDim2.new(0, 6, 0, 82),
 		Image = "rbxassetid://3641079629",
 		ScaleType = Enum.ScaleType.Stretch,
 		AutoButtonColor = false,
 		Parent = picker
 	})
+	Round(hue, 4)
 
 	local hueCursor = Create("Frame", {
 		BackgroundColor3 = window.Theme.Text,
@@ -1536,14 +1618,15 @@ function Section:AddColorPicker(options)
 		BackgroundColor3 = window.Theme.Element2,
 		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
-		Position = UDim2.new(0, 4, 0, 94),
-		Size = UDim2.new(1, -8, 0, 20),
+		Position = UDim2.new(0, 4, 0, 90),
+		Size = UDim2.new(1, -8, 0, 18),
 		Text = "",
 		PlaceholderText = "255, 0, 0",
 		ClearTextOnFocus = false,
 		Parent = picker
 	})
-	ApplyText(rgb, 16, window.Theme.SubText, false)
+	Round(rgb, 5)
+	ApplyText(rgb, 14, window.Theme.SubText, false)
 
 	local function apply(silent)
 		color = Color3.fromHSV(h, s, v)
@@ -1555,7 +1638,7 @@ function Section:AddColorPicker(options)
 		if flag then
 			window.Flags[flag] = color
 		end
-		if not silent and options.Callback then
+		if not silent and not suppressCallback and options.Callback then
 			options.Callback(color)
 		end
 	end
@@ -1565,18 +1648,19 @@ function Section:AddColorPicker(options)
 		local y = Clamp((pos.Y - sv.AbsolutePosition.Y) / sv.AbsoluteSize.Y, 0, 1)
 		s = x
 		v = 1 - y
-		apply()
+		apply(true)
 	end
 
 	local function updateHue(pos)
 		local y = Clamp((pos.Y - hue.AbsolutePosition.Y) / hue.AbsoluteSize.Y, 0, 1)
 		h = y
-		apply()
+		apply(true)
 	end
 
 	sv.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			svDrag = true
+			suppressCallback = true
 			updateSV(input.Position)
 		end
 	end)
@@ -1584,6 +1668,7 @@ function Section:AddColorPicker(options)
 	hue.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			hueDrag = true
+			suppressCallback = true
 			updateHue(input.Position)
 		end
 	end)
@@ -1601,8 +1686,15 @@ function Section:AddColorPicker(options)
 
 	UIS.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			local changed = svDrag or hueDrag
 			svDrag = false
 			hueDrag = false
+			if changed then
+				suppressCallback = false
+				if options.Callback then
+					options.Callback(color)
+				end
+			end
 		end
 	end)
 
@@ -1614,16 +1706,23 @@ function Section:AddColorPicker(options)
 			b = Clamp(tonumber(b) or 0, 0, 255)
 			local c = Color3.fromRGB(r, g, b)
 			h, s, v = c:ToHSV()
-			apply()
+			apply(false)
 		end
 	end)
 
 	button.MouseButton1Click:Connect(function()
 		opened = not opened
-		picker.Visible = opened
-		picker.Size = UDim2.new(1, 0, 0, opened and 118 or 0)
-		holder.Size = UDim2.new(1, 0, 0, opened and 148 or 24)
+		picker.Visible = true
 		arrow.Text = opened and "⌄" or "^"
+		holder.Size = UDim2.new(1, 0, 0, opened and 136 or 22)
+		Tween(picker, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.new(1, 0, 0, opened and 112 or 0)
+		})
+		task.delay(0.12, function()
+			if picker.Parent and not opened then
+				picker.Visible = false
+			end
+		end)
 		self:Refresh()
 	end)
 
@@ -1665,7 +1764,7 @@ function Section:AddKeybind(options)
 
 	local row = Create("Frame", {
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 24),
+		Size = UDim2.new(1, 0, 0, 22),
 		Parent = self.Content
 	})
 
@@ -1675,32 +1774,34 @@ function Section:AddKeybind(options)
 		Text = options.Text or "Keybind",
 		Parent = row
 	})
-	ApplyText(label, 18, window.Theme.Text, false)
+	ApplyText(label, 17, window.Theme.Text, false)
 
 	local modeButton = Create("TextButton", {
 		BackgroundColor3 = window.Theme.Element2,
 		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
-		Position = UDim2.new(1, -74, 0, 2),
-		Size = UDim2.new(0, 48, 1, -4),
+		Position = UDim2.new(1, -76, 0, 1),
+		Size = UDim2.new(0, 52, 1, -2),
 		Text = mode,
 		AutoButtonColor = false,
 		Parent = row
 	})
-	ApplyText(modeButton, 14, window.Theme.SubText, false)
+	Round(modeButton, 5)
+	ApplyText(modeButton, 13, window.Theme.SubText, false)
 	modeButton.TextXAlignment = Enum.TextXAlignment.Center
 
 	local keyButton = Create("TextButton", {
 		BackgroundColor3 = window.Theme.Element2,
 		BorderColor3 = window.Theme.BorderSoft,
 		BorderSizePixel = 1,
-		Position = UDim2.new(1, -20, 0, 2),
-		Size = UDim2.new(0, 20, 1, -4),
+		Position = UDim2.new(1, -20, 0, 1),
+		Size = UDim2.new(0, 20, 1, -2),
 		Text = key.Name,
 		AutoButtonColor = false,
 		Parent = row
 	})
-	ApplyText(keyButton, 14, window.Theme.SubText, false)
+	Round(keyButton, 5)
+	ApplyText(keyButton, 13, window.Theme.SubText, false)
 	keyButton.TextXAlignment = Enum.TextXAlignment.Center
 
 	local modes = {"Hold", "Toggle", "Always"}
